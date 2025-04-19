@@ -1,0 +1,394 @@
+package {{.Pkg}}_test
+
+import (
+	"github.com/mdelah/bitsets/{{.Pkg}}"
+	"github.com/mdelah/bitsets/internal/expect"
+	"testing"
+)
+
+func TestCount(t *testing.T) {
+	expect.Eq(t, 0, {{.None}}.Count())
+{{if not .Dynamic -}}
+	expect.Eq(t, {{.Pkg}}.Cap, {{.All}}.Count())
+{{end -}}
+	expect.Eq(t, 1, {{.Pkg}}.Value(5).Count())
+	expect.Eq(t, 2, {{.Pkg}}.Values(3, 5).Count())
+	expect.Eq(t, 5, {{.Pkg}}.Less(5).Count())
+{{if not .Dynamic -}}
+	expect.Eq(t, {{.Pkg}}.Max-5, {{.Pkg}}.More(5).Count())
+{{end -}}
+}
+
+func TestString(t *testing.T) {
+	expect.Eq(t, "{}", {{.None}}.String())
+{{- if .Large}}
+	expect.Eq(t, "{0-}", {{.All}}.String())
+{{- else}}
+	expect.Eq(t, "{0-{{.Max}}}", {{.All}}.String())
+{{- end}}
+	expect.Eq(t, "{5}", {{.Pkg}}.Value(5).String())
+	expect.Eq(t, "{3,5}", {{.Pkg}}.Values(3, 5).String())
+	expect.Eq(t, "{0-4}", {{.Pkg}}.Less(5).String())
+{{- if .Large}}
+	expect.Eq(t, "{6-}", {{.Pkg}}.More(5).String())
+{{- else}}
+	expect.Eq(t, "{6-{{.Max}}}", {{.Pkg}}.More(5).String())
+{{- end}}
+}
+
+func TestIsNone(t *testing.T) {
+	expect.Eq(t, true, {{.None}}.IsNone())
+	expect.Eq(t, false, {{.All}}.IsNone())
+	expect.Eq(t, false, {{.Pkg}}.Value(5).IsNone())
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).IsNone())
+	expect.Eq(t, false, {{.Pkg}}.Less(5).IsNone())
+	expect.Eq(t, false, {{.Pkg}}.More(5).IsNone())
+}
+
+func TestIsAll(t *testing.T) {
+	expect.Eq(t, false, {{.None}}.IsAll())
+	expect.Eq(t, true, {{.All}}.IsAll())
+	expect.Eq(t, false, {{.Pkg}}.Value(5).IsAll())
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).IsAll())
+	expect.Eq(t, false, {{.Pkg}}.Less(5).IsAll())
+	expect.Eq(t, false, {{.Pkg}}.More(5).IsAll())
+}
+
+func TestMin(t *testing.T) {
+	expect.Eq(t, -1, {{.None}}.Min())
+	expect.Eq(t, 0, {{.All}}.Min())
+	expect.Eq(t, 5, {{.Pkg}}.Value(5).Min())
+	expect.Eq(t, 3, {{.Pkg}}.Values(3, 5).Min())
+	expect.Eq(t, 0, {{.Pkg}}.Less(5).Min())
+	expect.Eq(t, 6, {{.Pkg}}.More(5).Min())
+}
+
+func TestMax(t *testing.T) {
+	expect.Eq(t, -1, {{.None}}.Max())
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Max, {{.All}}.Max())
+{{- end}}
+	expect.Eq(t, 5, {{.Pkg}}.Value(5).Max())
+	expect.Eq(t, 5, {{.Pkg}}.Values(3, 5).Max())
+	expect.Eq(t, 4, {{.Pkg}}.Less(5).Max())
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Max, {{.Pkg}}.More(5).Max())
+{{- end}}
+}
+
+func TestHas(t *testing.T) {
+	expect.Eq(t, false, {{.None}}.Has(3))
+	expect.Eq(t, true, {{.All}}.Has(3))
+	expect.Eq(t, false, {{.Pkg}}.Value(5).Has(3))
+	expect.Eq(t, true, {{.Pkg}}.Values(3, 5).Has(3))
+	expect.Eq(t, true, {{.Pkg}}.Less(5).Has(3))
+	expect.Eq(t, false, {{.Pkg}}.More(5).Has(3))
+}
+
+func TestLessCount(t *testing.T) {
+	expect.Eq(t, 0, {{.None}}.LessCount(5))
+	expect.Eq(t, 5, {{.All}}.LessCount(5))
+	expect.Eq(t, 0, {{.Pkg}}.Value(5).LessCount(5))
+	expect.Eq(t, 1, {{.Pkg}}.Values(3, 5).LessCount(5))
+	expect.Eq(t, 5, {{.Pkg}}.Less(5).LessCount(5))
+	expect.Eq(t, 0, {{.Pkg}}.More(5).LessCount(5))
+}
+
+func TestMoreCount(t *testing.T) {
+	expect.Eq(t, 0, {{.None}}.MoreCount(4))
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Cap-5, {{.All}}.MoreCount(4))
+{{- end}}
+	expect.Eq(t, 1, {{.Pkg}}.Value(5).MoreCount(4))
+	expect.Eq(t, 1, {{.Pkg}}.Values(3, 5).MoreCount(4))
+	expect.Eq(t, 0, {{.Pkg}}.Less(5).MoreCount(4))
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Cap-6, {{.Pkg}}.More(5).MoreCount(4))
+{{- end}}
+}
+
+func TestEqual(t *testing.T) {
+	expect.Eq(t, true, {{.None}}.Equal({{.None}}))
+	expect.Eq(t, false, {{.None}}.Equal({{.All}}))
+	expect.Eq(t, true, {{.All}}.Equal({{.All}}))
+	expect.Eq(t, false, {{.All}}.Equal({{.Pkg}}.Value(5)))
+	expect.Eq(t, true, {{.Pkg}}.Value(5).Equal({{.Pkg}}.Value(5)))
+	expect.Eq(t, false, {{.Pkg}}.Value(5).Equal({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, true, {{.Pkg}}.Values(3, 5).Equal({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).Equal({{.Pkg}}.Less(5)))
+	expect.Eq(t, true, {{.Pkg}}.Less(5).Equal({{.Pkg}}.Less(5)))
+	expect.Eq(t, false, {{.Pkg}}.Less(5).Equal({{.Pkg}}.More(5)))
+	expect.Eq(t, true, {{.Pkg}}.More(5).Equal({{.Pkg}}.More(5)))
+	expect.Eq(t, false, {{.Pkg}}.More(5).Equal({{.None}}))
+}
+
+func TestHasNone(t *testing.T) {
+	expect.Eq(t, true, {{.None}}.HasNone({{.None}}))
+	expect.Eq(t, true, {{.None}}.HasNone({{.All}}))
+	expect.Eq(t, false, {{.All}}.HasNone({{.All}}))
+	expect.Eq(t, false, {{.All}}.HasNone({{.Pkg}}.Value(5)))
+	expect.Eq(t, false, {{.Pkg}}.Value(5).HasNone({{.Pkg}}.Value(5)))
+	expect.Eq(t, false, {{.Pkg}}.Value(5).HasNone({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).HasNone({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).HasNone({{.Pkg}}.Less(5)))
+	expect.Eq(t, false, {{.Pkg}}.Less(5).HasNone({{.Pkg}}.Less(5)))
+	expect.Eq(t, true, {{.Pkg}}.Less(5).HasNone({{.Pkg}}.More(5)))
+	expect.Eq(t, false, {{.Pkg}}.More(5).HasNone({{.Pkg}}.More(5)))
+	expect.Eq(t, true, {{.Pkg}}.More(5).HasNone({{.None}}))
+}
+
+func TestHasAll(t *testing.T) {
+	expect.Eq(t, true, {{.None}}.HasAll({{.None}}))
+	expect.Eq(t, false, {{.None}}.HasAll({{.All}}))
+	expect.Eq(t, true, {{.All}}.HasAll({{.All}}))
+	expect.Eq(t, true, {{.All}}.HasAll({{.Pkg}}.Value(5)))
+	expect.Eq(t, true, {{.Pkg}}.Value(5).HasAll({{.Pkg}}.Value(5)))
+	expect.Eq(t, false, {{.Pkg}}.Value(5).HasAll({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, true, {{.Pkg}}.Values(3, 5).HasAll({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, false, {{.Pkg}}.Values(3, 5).HasAll({{.Pkg}}.Less(5)))
+	expect.Eq(t, true, {{.Pkg}}.Less(5).HasAll({{.Pkg}}.Less(5)))
+	expect.Eq(t, false, {{.Pkg}}.Less(5).HasAll({{.Pkg}}.More(5)))
+	expect.Eq(t, true, {{.Pkg}}.More(5).HasAll({{.Pkg}}.More(5)))
+	expect.Eq(t, true, {{.Pkg}}.More(5).HasAll({{.None}}))
+}
+
+func TestCompare(t *testing.T) {
+	expect.Eq(t, 0, {{.None}}.Compare({{.None}}))
+	expect.Eq(t, -1, {{.None}}.Compare({{.All}}))
+	expect.Eq(t, 0, {{.All}}.Compare({{.All}}))
+	expect.Eq(t, 1, {{.All}}.Compare({{.Pkg}}.Value(5)))
+	expect.Eq(t, 0, {{.Pkg}}.Value(5).Compare({{.Pkg}}.Value(5)))
+	expect.Eq(t, -1, {{.Pkg}}.Value(5).Compare({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, 0, {{.Pkg}}.Values(3, 5).Compare({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, -1, {{.Pkg}}.Values(3, 5).Compare({{.Pkg}}.Less(5)))
+	expect.Eq(t, 0, {{.Pkg}}.Less(5).Compare({{.Pkg}}.Less(5)))
+	expect.Eq(t, 1, {{.Pkg}}.Less(5).Compare({{.Pkg}}.More(5)))
+	expect.Eq(t, 0, {{.Pkg}}.More(5).Compare({{.Pkg}}.More(5)))
+	expect.Eq(t, 1, {{.Pkg}}.More(5).Compare({{.None}}))
+}
+
+func TestAndCount(t *testing.T) {
+	expect.Eq(t, 0, {{.None}}.AndCount({{.None}}))
+	expect.Eq(t, 0, {{.None}}.AndCount({{.All}}))
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Cap, {{.All}}.AndCount({{.All}}))
+{{- end}}
+	expect.Eq(t, 1, {{.All}}.AndCount({{.Pkg}}.Value(5)))
+	expect.Eq(t, 1, {{.Pkg}}.Value(5).AndCount({{.Pkg}}.Value(5)))
+	expect.Eq(t, 1, {{.Pkg}}.Value(5).AndCount({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, 2, {{.Pkg}}.Values(3, 5).AndCount({{.Pkg}}.Values(3, 5)))
+	expect.Eq(t, 1, {{.Pkg}}.Values(3, 5).AndCount({{.Pkg}}.Less(5)))
+	expect.Eq(t, 5, {{.Pkg}}.Less(5).AndCount({{.Pkg}}.Less(5)))
+	expect.Eq(t, 0, {{.Pkg}}.Less(5).AndCount({{.Pkg}}.More(5)))
+{{- if not .Dynamic}}
+	expect.Eq(t, {{.Pkg}}.Cap-6, {{.Pkg}}.More(5).AndCount({{.Pkg}}.More(5)))
+{{- end}}
+	expect.Eq(t, 0, {{.Pkg}}.More(5).AndCount({{.None}}))
+}
+
+func TestAdd(t *testing.T) {
+	x := {{.None}}
+	x.Add(3)
+	expect.Set(t, {{.Pkg}}.Value(3), x)
+	x.Add(3)
+	expect.Set(t, {{.Pkg}}.Value(3), x)
+	x.Add(5)
+	expect.Set(t, {{.Pkg}}.Values(3, 5), x)
+}
+
+func TestRemove(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.Remove(1)
+	expect.Set(t, {{.Pkg}}.Values(3, 5), x)
+	x.Remove(3)
+	expect.Set(t, {{.Pkg}}.Value(5), x)
+	x.Remove(5)
+	expect.Set(t, {{.None}}, x)
+}
+
+func TestAssign(t *testing.T) {
+	x := {{.None}}
+	x.Assign({{.Pkg}}.Value(5))
+	expect.Set(t, {{.Pkg}}.Value(5), x)
+}
+
+func TestAssignNone(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignNone()
+	expect.Set(t, {{.None}}, x)
+}
+
+func TestAssignAll(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignAll()
+	expect.Set(t, {{.All}}, x)
+}
+
+func TestEach(t *testing.T) {
+	expect.Ints(t, {{.None}}.Each())
+	expect.Ints(t, {{.Pkg}}.Value(5).Each(), 5)
+	expect.Ints(t, {{.Pkg}}.Values(3, 5).Each(), 3, 5)
+	expect.Ints(t, {{.Pkg}}.Less(5).Each(), 0, 1, 2, 3, 4)
+}
+
+func TestNot(t *testing.T) {
+	expect.Set(t, {{.All}}, {{.None}}.Not())
+	expect.Set(t, {{.None}}, {{.All}}.Not())
+	expect.Set(t, {{.Pkg}}.Less(5).Or({{.Pkg}}.More(5)), {{.Pkg}}.Value(5).Not())
+	expect.Set(t, {{.Pkg}}.Less(3).Or({{.Pkg}}.Value(4).Or({{.Pkg}}.More(5))), {{.Pkg}}.Values(3, 5).Not())
+	expect.Set(t, {{.Pkg}}.More(4), {{.Pkg}}.Less(5).Not())
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.More(5).Not())
+}
+
+func TestAssignNot(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignNot()
+	expect.Set(t, {{.Pkg}}.Less(3).Or({{.Pkg}}.Value(4)).Or({{.Pkg}}.More(5)), x)
+}
+
+func TestAssignSub(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignSub({{.Pkg}}.Values(3))
+	expect.Set(t, {{.Pkg}}.Values(5), x)
+}
+
+func TestAssignAnd(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignAnd({{.Pkg}}.Values(3))
+	expect.Set(t, {{.Pkg}}.Values(3), x)
+}
+
+func TestAssignOr(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignOr({{.Pkg}}.Values(4))
+	expect.Set(t, {{.Pkg}}.Values(3, 4, 5), x)
+}
+
+func TestAssignXor(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignXor({{.Pkg}}.Values(3, 4))
+	expect.Set(t, {{.Pkg}}.Values(4, 5), x)
+}
+
+func TestAssignNor(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignNor({{.Pkg}}.Values(3, 4))
+	expect.Set(t, {{.Pkg}}.Less(3).Or({{.Pkg}}.More(5)), x)
+}
+
+func TestAssignIff(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignIff({{.Pkg}}.Values(3, 4))
+	expect.Set(t, {{.Pkg}}.Less(4).Or({{.Pkg}}.More(5)), x)
+}
+
+func TestAssignImply(t *testing.T) {
+	x := {{.Pkg}}.Values(3, 5)
+	x.AssignImply({{.Pkg}}.Values(3, 4))
+	expect.Set(t, {{.Pkg}}.Less(5).Or({{.Pkg}}.More(5)), x)
+}
+
+func TestSub(t *testing.T) {
+	expect.Set(t, {{.None}}, {{.None}}.Sub({{.None}}))
+	expect.Set(t, {{.None}}, {{.None}}.Sub({{.All}}))
+	expect.Set(t, {{.None}}, {{.All}}.Sub({{.All}}))
+	expect.Set(t, {{.Pkg}}.Less(5).Or({{.Pkg}}.More(5)), {{.All}}.Sub({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Value(5).Sub({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Value(5).Sub({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Values(3, 5).Sub({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Values(3, 5).Sub({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Less(5).Sub({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Less(5), {{.Pkg}}.Less(5).Sub({{.Pkg}}.More(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.More(5).Sub({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.More(5).Sub({{.None}}))
+}
+
+func TestAnd(t *testing.T) {
+	expect.Set(t, {{.None}}, {{.None}}.And({{.None}}))
+	expect.Set(t, {{.None}}, {{.None}}.And({{.All}}))
+	expect.Set(t, {{.All}}, {{.All}}.And({{.All}}))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.All}}.And({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Value(5).And({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Value(5).And({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Values(3, 5), {{.Pkg}}.Values(3, 5).And({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Value(3), {{.Pkg}}.Values(3, 5).And({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Less(5), {{.Pkg}}.Less(5).And({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Less(5).And({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.More(5).And({{.Pkg}}.More(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.More(5).And({{.None}}))
+}
+
+func TestOr(t *testing.T) {
+	expect.Set(t, {{.None}}, {{.None}}.Or({{.None}}))
+	expect.Set(t, {{.All}}, {{.None}}.Or({{.All}}))
+	expect.Set(t, {{.All}}, {{.All}}.Or({{.All}}))
+	expect.Set(t, {{.All}}, {{.All}}.Or({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Value(5).Or({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Values(5, 3), {{.Pkg}}.Value(5).Or({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Values(3, 5), {{.Pkg}}.Values(3, 5).Or({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.Values(3, 5).Or({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Less(5), {{.Pkg}}.Less(5).Or({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Value(5).Not(), {{.Pkg}}.Less(5).Or({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.More(5).Or({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.More(5).Or({{.None}}))
+}
+
+func TestXor(t *testing.T) {
+	expect.Set(t, {{.None}}, {{.None}}.Xor({{.None}}))
+	expect.Set(t, {{.All}}, {{.None}}.Xor({{.All}}))
+	expect.Set(t, {{.None}}, {{.All}}.Xor({{.All}}))
+	expect.Set(t, {{.Pkg}}.Value(5).Not(), {{.All}}.Xor({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Value(5).Xor({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Value(3), {{.Pkg}}.Value(5).Xor({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Values(3, 5).Xor({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Values(0, 1, 2, 4, 5), {{.Pkg}}.Values(3, 5).Xor({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.Less(5).Xor({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Value(5).Not(), {{.Pkg}}.Less(5).Xor({{.Pkg}}.More(5)))
+	expect.Set(t, {{.None}}, {{.Pkg}}.More(5).Xor({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.More(5).Xor({{.None}}))
+}
+
+func TestNor(t *testing.T) {
+	expect.Set(t, {{.All}}, {{.None}}.Nor({{.None}}))
+	expect.Set(t, {{.None}}, {{.None}}.Nor({{.All}}))
+	expect.Set(t, {{.None}}, {{.All}}.Nor({{.All}}))
+	expect.Set(t, {{.None}}, {{.All}}.Nor({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Less(5).Or({{.Pkg}}.More(5)), {{.Pkg}}.Value(5).Nor({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Values(0, 1, 2, 4).Or({{.Pkg}}.More(5)), {{.Pkg}}.Value(5).Nor({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Values(0, 1, 2, 4).Or({{.Pkg}}.More(5)), {{.Pkg}}.Values(3, 5).Nor({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.More(5), {{.Pkg}}.Values(3, 5).Nor({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.More(4), {{.Pkg}}.Less(5).Nor({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Less(5).Nor({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.More(5).Nor({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.More(5).Nor({{.None}}))
+}
+
+func TestIff(t *testing.T) {
+	expect.Set(t, {{.All}}, {{.None}}.Iff({{.None}}))
+	expect.Set(t, {{.None}}, {{.None}}.Iff({{.All}}))
+	expect.Set(t, {{.All}}, {{.All}}.Iff({{.All}}))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.All}}.Iff({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Value(5).Iff({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.Pkg}}.Values(0, 1, 2).Or({{.Pkg}}.More(3)), {{.Pkg}}.Value(5).Iff({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Values(3, 5).Iff({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Value(3).Or({{.Pkg}}.More(5)), {{.Pkg}}.Values(3, 5).Iff({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Less(5).Iff({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.Pkg}}.Less(5).Iff({{.Pkg}}.More(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.More(5).Iff({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.More(5).Iff({{.None}}))
+}
+
+func TestImply(t *testing.T) {
+	expect.Set(t, {{.All}}, {{.None}}.Imply({{.None}}))
+	expect.Set(t, {{.All}}, {{.None}}.Imply({{.All}}))
+	expect.Set(t, {{.All}}, {{.All}}.Imply({{.All}}))
+	expect.Set(t, {{.Pkg}}.Value(5), {{.All}}.Imply({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Value(5).Imply({{.Pkg}}.Value(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Value(5).Imply({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Values(3, 5).Imply({{.Pkg}}.Values(3, 5)))
+	expect.Set(t, {{.Pkg}}.Value(5).Not(), {{.Pkg}}.Values(3, 5).Imply({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.Less(5).Imply({{.Pkg}}.Less(5)))
+	expect.Set(t, {{.Pkg}}.More(4), {{.Pkg}}.Less(5).Imply({{.Pkg}}.More(5)))
+	expect.Set(t, {{.All}}, {{.Pkg}}.More(5).Imply({{.Pkg}}.More(5)))
+	expect.Set(t, {{.Pkg}}.Less(6), {{.Pkg}}.More(5).Imply({{.None}}))
+}
