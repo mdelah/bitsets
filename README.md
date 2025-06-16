@@ -1,6 +1,6 @@
 # bitsets
 
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/mdelah/bitset?tab=doc)](https://pkg.go.dev/github.com/mdelah/bitset?tab=doc)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/mdelah/bitset?tab=doc)](https://pkg.go.dev/github.com/mdelah/bitsets?tab=doc)
 
 ### Description
 
