@@ -31,6 +31,7 @@ type (
 )
 
 func (d Variant) Cap() int       { return int(d) }
+func (d Variant) ForcePtr() bool { return d >= 1024 }
 func (d Variant) Large() bool    { return d > 64 || d == -1 }
 func (d Variant) Dynamic() bool  { return d == -1 }
 func (d Variant) PageCount() int { return int(d / 64) }

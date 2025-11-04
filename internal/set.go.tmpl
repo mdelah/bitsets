@@ -44,9 +44,15 @@ const (
 // Value returns a set containing the one value.
 {{- if .Dynamic}}
 func Value(value int) Set {	return Set{paged.Var{Begin: value/64, Body: bit64.Value(value%64)}} }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func Value(value int) *Set {
     s := new(Set)
+    s.Add(value)
+    return s
+}
+{{- else if .Large}}
+func Value(value int) Set {
+    var s Set
     s.Add(value)
     return s
 }
@@ -60,31 +66,53 @@ func All() Set { return Set{paged.Var{Head: bit64.All, Body: bit64.All, Tail: bi
 
 // None returns an empty set.
 func None() Set { return Set{} }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 // All returns a set containing all possible values.
 func All() *Set {
-	s := new(Set)
+    s := new(Set)
     for i := range *s {
-		(*s)[i] = ^uint64(0)
+        (*s)[i] = ^uint64(0)
     }
     return s
 }
 
 // None returns an empty set.
 func None() *Set { return new(Set) }
+{{- else if .Large}}
+// All returns a set containing all possible values.
+func All() Set {
+	var s Set
+    for i := range s {
+		s[i] = ^uint64(0)
+    }
+    return s
+}
+
+// None returns an empty set.
+func None() Set { return Set{} }
 {{- end}}
 
 // Less returns a set containing all values smaller than that given.
 {{- if .Dynamic}}
 func Less(value int) Set { return Set{paged.Var{Head: bit64.All, Begin: value/64, Body: bit64.Less(value%64)}} }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func Less(value int) *Set {
     s := new(Set)
+    i := value/64
+    for k := range i {
+        (*s)[k] = ^uint64(0)
+    }
+    (*s)[i] = 1<<(value%64) - 1
+    return s
+}
+{{- else if .Large}}
+func Less(value int) Set {
+    var s Set
 	i := value/64
     for k := range i {
-		(*s)[k] = ^uint64(0)
+		s[k] = ^uint64(0)
     }
-	(*s)[i] = 1<<(value%64) - 1
+	s[i] = 1<<(value%64) - 1
 	return s
 }
 {{- else}}
@@ -94,14 +122,24 @@ func Less(value int) Set { return Set((1 << value) - 1) }
 // More returns a set contains all values greater than that given.
 {{- if .Dynamic}}
 func More(value int) Set { return Set{paged.Var{Begin: value/64, Body: bit64.More(value%64), Tail: bit64.All}} }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func More(value int) *Set {
     s := new(Set)
+    i := value/64
+    for k := i+1; k < {{.PageCount}}; k++ {
+        (*s)[k] = ^uint64(0)
+    }
+    (*s)[i] = ^uint64(1<<(value%64 + 1) - 1)
+    return s
+}
+{{- else if .Large}}
+func More(value int) Set {
+    var s Set
 	i := value/64
     for k := i+1; k < {{.PageCount}}; k++ {
-		(*s)[k] = ^uint64(0)
+		s[k] = ^uint64(0)
     }
-	(*s)[i] = ^uint64(1<<(value%64 + 1) - 1)
+	s[i] = ^uint64(1<<(value%64 + 1) - 1)
     return s
 }
 {{- else}}
@@ -109,7 +147,7 @@ func More(value int) Set { return Set(^uint{{.Cap}}(1 << (value+1) - 1)) }
 {{- end}}
 
 // Values returns a set containing the given values.
-{{- if and .Large (not .Dynamic)}}
+{{- if .ForcePtr}}
 func Values(values ...int) *Set {
 	s := new(Set)
 {{- else}}
@@ -125,14 +163,16 @@ func Values(values ...int) Set {
 // Count returns the number of values in the set.
 {{- if .Dynamic}}
 func (s Set) Count() int { return paged.WalkVar(s.v, 0, paged.Count) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Count() int { return paged.WalkSlice(s[:], 0, paged.Count) }
+{{- else if .Large}}
+func (s Set) Count() int { return paged.WalkSlice(s[:], 0, paged.Count) }
 {{- else}}
 func (s Set) Count() int { return bits.OnesCount{{.Cap}}(uint{{.Cap}}(s)) }
 {{- end}}
 
 // String returns a human-readable form of the set.
-{{- if and .Large (not .Dynamic)}}
+{{- if .ForcePtr}}
 func (s *Set) String() string { return abstract.Format(s) }
 {{- else}}
 func (s Set) String() string { return abstract.Format(s) }
@@ -141,8 +181,10 @@ func (s Set) String() string { return abstract.Format(s) }
 // IsNone reports whether the set contains no values.
 {{- if .Dynamic}}
 func (s Set) IsNone() bool { return paged.WalkVar(s.v, true, paged.IsNone) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) IsNone() bool { return paged.WalkSlice(s[:], true, paged.IsNone) }
+{{- else if .Large}}
+func (s Set) IsNone() bool { return paged.WalkSlice(s[:], true, paged.IsNone) }
 {{- else}}
 func (s Set) IsNone() bool { return s == None }
 {{- end}}
@@ -150,8 +192,10 @@ func (s Set) IsNone() bool { return s == None }
 // IsAll reports whether the set contains all possible values.
 {{- if .Dynamic}}
 func (s Set) IsAll() bool { return paged.WalkVar(s.v, true, paged.IsAll) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) IsAll() bool { return paged.WalkSlice(s[:], true, paged.IsAll) }
+{{- else if .Large}}
+func (s Set) IsAll() bool { return paged.WalkSlice(s[:], true, paged.IsAll) }
 {{- else}}
 func (s Set) IsAll() bool { return s == All }
 {{- end}}
@@ -159,8 +203,10 @@ func (s Set) IsAll() bool { return s == All }
 // Min returns the smallest value in the set. It returns -1 if empty.
 {{- if .Dynamic}}
 func (s Set) Min() int { return paged.WalkVar(s.v, -1, paged.Min) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Min() int { return paged.WalkSlice(s[:], -1, paged.Min) }
+{{- else if .Large}}
+func (s Set) Min() int { return paged.WalkSlice(s[:], -1, paged.Min) }
 {{- else}}
 func (s Set) Min() int {
 	switch val := bits.TrailingZeros{{.Cap}}(uint{{.Cap}}(s)); val {
@@ -175,8 +221,10 @@ func (s Set) Min() int {
 // Max returns the largest value in the set. It returns -1 if empty.
 {{- if .Dynamic}}
 func (s Set) Max() int { return paged.WalkVarBack(s.v, -1, paged.Max) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Max() int { return paged.WalkSliceBack(s[:], -1, paged.Max) }
+{{- else if .Large}}
+func (s Set) Max() int { return paged.WalkSliceBack(s[:], -1, paged.Max) }
 {{- else}}
 func (s Set) Max() int {
 	switch val := bits.LeadingZeros{{.Cap}}(uint{{.Cap}}(s)); val {
@@ -191,8 +239,10 @@ func (s Set) Max() int {
 // Has reports whether the set holds the value given.
 {{- if .Dynamic}}
 func (s Set) Has(value int) bool { return s.v.Get(value/64).Has(value%64) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Has(value int) bool { return bit64.Set(s[value/64]).Has(value%64) }
+{{- else if .Large}}
+func (s Set) Has(value int) bool { return bit64.Set(s[value/64]).Has(value%64) }
 {{- else}}
 func (s Set) Has(value int) bool { return !s.HasNone(Value(value)) }
 {{- end}}
@@ -200,8 +250,10 @@ func (s Set) Has(value int) bool { return !s.HasNone(Value(value)) }
 // Equal tests if the set is the same as another.
 {{- if .Dynamic}}
 func (s Set) Equal(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.Equal) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Equal(other *Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.Equal) }
+{{- else if .Large}}
+func (s Set) Equal(other Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.Equal) }
 {{- else}}
 func (s Set) Equal(other Set) bool { return s == other }
 {{- end}}
@@ -209,8 +261,10 @@ func (s Set) Equal(other Set) bool { return s == other }
 // HasAny reports whether the set has any values in common with another.
 {{- if .Dynamic}}
 func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) HasAny(other *Set) bool { return !s.HasNone(other) }
+{{- else if .Large}}
+func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
 {{- else}}
 func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
 {{- end}}
@@ -218,8 +272,10 @@ func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
 // HasNone reports whether the set does not have any values in common with another.
 {{- if .Dynamic}}
 func (s Set) HasNone(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.HasNone) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) HasNone(other *Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.HasNone) }
+{{- else if .Large}}
+func (s Set) HasNone(other Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.HasNone) }
 {{- else}}
 func (s Set) HasNone(other Set) bool { return s&other == None }
 {{- end}}
@@ -227,8 +283,10 @@ func (s Set) HasNone(other Set) bool { return s&other == None }
 // HasAll reports whether the set holds all values present in another.
 {{- if .Dynamic}}
 func (s Set) HasAll(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.HasAll) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) HasAll(other *Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.HasAll) }
+{{- else if .Large}}
+func (s Set) HasAll(other Set) bool { return paged.WalkSlice2(s[:], other[:], true, paged.HasAll) }
 {{- else}}
 func (s Set) HasAll(other Set) bool { return s | ^other == All }
 {{- end}}
@@ -237,8 +295,10 @@ func (s Set) HasAll(other Set) bool { return s | ^other == All }
 // sets, a positive (negative) number if present in the left (right) hand side.
 {{- if .Dynamic}}
 func (s Set) Compare(other Set) int { return paged.WalkVar2(s.v, other.v, 0, paged.Compare) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Compare(other *Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.Compare) }
+{{- else if .Large}}
+func (s Set) Compare(other Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.Compare) }
 {{- else}}
 func (s Set) Compare(other Set) int { return cmp.Compare(bits.Reverse{{.Cap}}(uint{{.Cap}}(s)), bits.Reverse{{.Cap}}(uint{{.Cap}}(other))) }
 {{- end}}
@@ -246,8 +306,10 @@ func (s Set) Compare(other Set) int { return cmp.Compare(bits.Reverse{{.Cap}}(ui
 // LessCount returns the number of values in the set less than the given value.
 {{- if .Dynamic}}
 func (s Set) LessCount(value int) int { return paged.WalkVar(s.v, 0, paged.LessCount{value/64, value%64}.Walk) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{value/64, value%64}.Walk) }
+{{- else if .Large}}
+func (s Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{value/64, value%64}.Walk) }
 {{- else}}
 func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 {{- end}}
@@ -255,8 +317,10 @@ func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 // MoreCount returns the number of values in the set greater than the given value.
 {{- if .Dynamic}}
 func (s Set) MoreCount(value int) int { return paged.WalkVarBack(s.v, 0, paged.MoreCount{value/64, value%64}.Walk) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{value/64, value%64}.Walk) }
+{{- else if .Large}}
+func (s Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{value/64, value%64}.Walk) }
 {{- else}}
 func (s Set) MoreCount(value int) int { return s.And(More(value)).Count() }
 {{- end}}
@@ -264,8 +328,10 @@ func (s Set) MoreCount(value int) int { return s.And(More(value)).Count() }
 // AndCount returns the number of values the set has in common the other.
 {{- if .Dynamic}}
 func (s Set) AndCount(other Set) int { return paged.WalkVar2(s.v, other.v, 0, paged.AndCount) }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) AndCount(other *Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.AndCount) }
+{{- else if .Large}}
+func (s Set) AndCount(other Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.AndCount) }
 {{- else}}
 func (s Set) AndCount(other Set) int { return s.And(other).Count() }
 {{- end}}
@@ -294,8 +360,10 @@ func (s *Set) Assign(other Set) {
 	s.v = other.v
 	s.v.Unalias()
 }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Assign(other *Set) { copy(s[:], other[:]) }
+{{- else if .Large}}
+func (s *Set) Assign(other Set) { copy(s[:], other[:]) }
 {{- else}}
 func (s *Set) Assign(other Set) { *s = other }
 {{- end}}
@@ -325,8 +393,10 @@ func (s *Set) AssignAll() { *s = All }
 // Each loops over the values of the set in ascending order.
 {{- if .Dynamic}}
 func (s Set) Each() iter.Seq[int] { return s.v.Each }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Each() iter.Seq[int] { return paged.Slice(s[:]).Each }
+{{- else if .Large}}
+func (s Set) Each() iter.Seq[int] { return paged.Slice(s[:]).Each }
 {{- else}}
 func (s Set) Each() iter.Seq[int] { return s.each }
 {{- end}}
@@ -335,8 +405,10 @@ func (s Set) Each() iter.Seq[int] { return s.each }
 // Each iteration produces the first value of the range, and the smallest value greater than that absent from the set.
 {{- if .Dynamic}}
 func (s Set) Ranges() iter.Seq2[int, int] { return s.v.EachRange }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Ranges() iter.Seq2[int, int] { return paged.Slice(s[:]).EachRange }
+{{- else if .Large}}
+func (s Set) Ranges() iter.Seq2[int, int] { return paged.Slice(s[:]).EachRange }
 {{- else}}
 func (s Set) Ranges() iter.Seq2[int, int] { return s.eachRange }
 {{- end}}
@@ -348,9 +420,16 @@ func (s Set) Not() Set {
 	s.AssignNot()
 	return s
 }
-{{- else if .Large}}
+{{- else if .ForcePtr}}
 func (s *Set) Not() *Set {
 	res := new(Set)
+	res.Assign(s)
+	res.AssignNot()
+	return res
+}
+{{- else if .Large}}
+func (s Set) Not() Set {
+	var res Set
 	res.Assign(s)
 	res.AssignNot()
 	return res
@@ -381,9 +460,16 @@ func (s Set) {{.Name}}(other Set) Set {
     s.Assign{{.Name}}(other)
     return s
 }
-{{- else if $s.Large}}
+{{- else if $s.ForcePtr}}
 func (s *Set) {{.Name}}(other *Set) *Set {
     res := new(Set)
+	res.Assign(s)
+    res.Assign{{.Name}}(other)
+    return res
+}
+{{- else if $s.Large}}
+func (s Set) {{.Name}}(other Set) Set {
+    var res Set
 	res.Assign(s)
     res.Assign{{.Name}}(other)
     return res
@@ -397,8 +483,10 @@ func (s Set) {{.Name}}(other Set) Set { return {{.Expr}} }
 // Assign{{.Name}} assigns the set of {{.Desc}}.
 {{- if $s.Dynamic}}
 func (s *Set) Assign{{.Name}}(other Set) { s.v.Assign2(&other.v, (*bit64.Set).Assign{{.Name}})}
-{{- else if $s.Large}}
+{{- else if $s.ForcePtr}}
 func (s *Set) Assign{{.Name}}(other *Set) { paged.Slice(s[:]).Set2(other[:], (*bit64.Set).Assign{{.Name}}) }
+{{- else if $s.Large}}
+func (s *Set) Assign{{.Name}}(other Set) { paged.Slice(s[:]).Set2(other[:], (*bit64.Set).Assign{{.Name}}) }
 {{- else}}
 func (s *Set) Assign{{.Name}}(other Set) { {{.Expr2}} }
 {{- end}}
