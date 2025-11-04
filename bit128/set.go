@@ -1,4 +1,4 @@
-package kbit8
+package bit128
 
 import (
 	"iter"
@@ -8,15 +8,15 @@ import (
 	"github.com/mdelah/bitsets/internal/paged"
 )
 
-// Set is fixed-width bitset able to store non-negative `int` values up to 8191. The zero value is empty and ready to use.
-type Set [128]uint64
+// Set is fixed-width bitset able to store non-negative `int` values up to 127. The zero value is empty and ready to use.
+type Set [2]uint64
 
 const (
 	// Cap is the maximum possible size for the set.
-	Cap = 8192
+	Cap = 128
 
 	// Max is the largest value that can be stored.
-	Max = 8191
+	Max = 127
 )
 
 // Value returns a set containing the one value.
@@ -53,7 +53,7 @@ func Less(value int) *Set {
 func More(value int) *Set {
 	s := new(Set)
 	i := value / 64
-	for k := i + 1; k < 128; k++ {
+	for k := i + 1; k < 2; k++ {
 		(*s)[k] = ^uint64(0)
 	}
 	(*s)[i] = ^uint64(1<<(value%64+1) - 1)

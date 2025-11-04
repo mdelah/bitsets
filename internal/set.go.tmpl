@@ -206,6 +206,15 @@ func (s *Set) Equal(other *Set) bool { return paged.WalkSlice2(s[:], other[:], t
 func (s Set) Equal(other Set) bool { return s == other }
 {{- end}}
 
+// HasAny reports whether the set has any values in common with another.
+{{- if .Dynamic}}
+func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
+{{- else if .Large}}
+func (s *Set) HasAny(other *Set) bool { return !s.HasNone(other) }
+{{- else}}
+func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
+{{- end}}
+
 // HasNone reports whether the set does not have any values in common with another.
 {{- if .Dynamic}}
 func (s Set) HasNone(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.HasNone) }
