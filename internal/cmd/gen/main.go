@@ -9,7 +9,7 @@ import (
 
 func main() {
 	t := template.Must(template.New("").ParseGlob("internal/*.go.tmpl"))
-	for _, v := range []Variant{8, 16, 32, 64, 1024, 8192, -1} {
+	for _, v := range []Variant{8, 16, 32, 64, 128, 1024, 8192, -1} {
 		must(os.MkdirAll(v.Pkg(), 0o755))
 		for _, fn := range []string{"set.go", "set_test.go"} {
 			fp, err := os.Create(filepath.Join(v.Pkg(), fn))
@@ -63,7 +63,7 @@ func (d Variant) Pkg() string {
 		return "vbit"
 	case d == 1024:
 		return "kbit"
-	case d.Large():
+	case d > 1024:
 		return fmt.Sprintf("kbit%d", d/1024)
 	default:
 		return fmt.Sprintf("bit%d", d)

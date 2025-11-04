@@ -63,6 +63,9 @@ func (s Set) Has(value int) bool { return s.v.Get(value / 64).Has(value % 64) }
 // Equal tests if the set is the same as another.
 func (s Set) Equal(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.Equal) }
 
+// HasAny reports whether the set has any values in common with another.
+func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
+
 // HasNone reports whether the set does not have any values in common with another.
 func (s Set) HasNone(other Set) bool { return paged.WalkVar2(s.v, other.v, true, paged.HasNone) }
 

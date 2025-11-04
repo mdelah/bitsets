@@ -81,6 +81,9 @@ func (s Set) Has(value int) bool { return !s.HasNone(Value(value)) }
 // Equal tests if the set is the same as another.
 func (s Set) Equal(other Set) bool { return s == other }
 
+// HasAny reports whether the set has any values in common with another.
+func (s Set) HasAny(other Set) bool { return !s.HasNone(other) }
+
 // HasNone reports whether the set does not have any values in common with another.
 func (s Set) HasNone(other Set) bool { return s&other == None }
 
