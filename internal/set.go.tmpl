@@ -14,7 +14,13 @@ import (
 {{- end}}
 )
 
-// Set is {{if .Dynamic}}variable{{else}}fixed{{end}}-width bitset able to store non-negative `int` values{{if not .Dynamic}} up to {{.Max}}{{end}}. The zero value is empty and ready to use.
+{{- if .Dynamic}}
+// Set is a variable-width bitset able to store non-negative `int` values.
+{{- else}}
+// Set is a fixed-width bitset able to store `int` values in the inclusive range [0, Max].
+// Inputs outside this range are not supported and may panic or otherwise behave unexpectedly.
+{{- end}}
+// The zero value is empty and ready to use.
 {{- if .Dynamic}}
 type Set struct {v paged.Var}
 {{- else if .Large}}
@@ -42,6 +48,11 @@ const (
 {{- end}}
 
 // Value returns a set containing the one value.
+{{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
 {{- if .Dynamic}}
 func Value(value int) Set {	return Set{paged.Var{Begin: value/64, Body: bit64.Value(value%64)}} }
 {{- else if .ForcePtr}}
@@ -94,6 +105,11 @@ func None() Set { return Set{} }
 
 // Less returns a set containing all values smaller than that given.
 {{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
+{{- if .Dynamic}}
 func Less(value int) Set { return Set{paged.Var{Head: bit64.All, Begin: value/64, Body: bit64.Less(value%64)}} }
 {{- else if .ForcePtr}}
 func Less(value int) *Set {
@@ -121,6 +137,11 @@ func Less(value int) Set { return Set((1 << value) - 1) }
 
 // More returns a set contains all values greater than that given.
 {{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
+{{- if .Dynamic}}
 func More(value int) Set { return Set{paged.Var{Begin: value/64, Body: bit64.More(value%64), Tail: bit64.All}} }
 {{- else if .ForcePtr}}
 func More(value int) *Set {
@@ -147,6 +168,11 @@ func More(value int) Set { return Set(^uint{{.Cap}}(1 << (value+1) - 1)) }
 {{- end}}
 
 // Values returns a set containing the given values.
+{{- if .Dynamic}}
+// Every value must be non-negative.
+{{- else}}
+// Every value must be in [0, Max].
+{{- end}}
 {{- if .ForcePtr}}
 func Values(values ...int) *Set {
 	s := new(Set)
@@ -238,6 +264,11 @@ func (s Set) Max() int {
 
 // Has reports whether the set holds the value given.
 {{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
+{{- if .Dynamic}}
 func (s Set) Has(value int) bool { return s.v.Get(value/64).Has(value%64) }
 {{- else if .ForcePtr}}
 func (s *Set) Has(value int) bool { return bit64.Set(s[value/64]).Has(value%64) }
@@ -305,6 +336,11 @@ func (s Set) Compare(other Set) int { return cmp.Compare(bits.Reverse{{.Cap}}(ui
 
 // LessCount returns the number of values in the set less than the given value.
 {{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
+{{- if .Dynamic}}
 func (s Set) LessCount(value int) int { return paged.WalkVar(s.v, 0, paged.LessCount{value/64, value%64}.Walk) }
 {{- else if .ForcePtr}}
 func (s *Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{value/64, value%64}.Walk) }
@@ -315,6 +351,11 @@ func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 {{- end}}
 
 // MoreCount returns the number of values in the set greater than the given value.
+{{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
 {{- if .Dynamic}}
 func (s Set) MoreCount(value int) int { return paged.WalkVarBack(s.v, 0, paged.MoreCount{value/64, value%64}.Walk) }
 {{- else if .ForcePtr}}
@@ -338,6 +379,11 @@ func (s Set) AndCount(other Set) int { return s.And(other).Count() }
 
 // Add puts a value into the set if not already present.
 {{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
+{{- if .Dynamic}}
 func (s *Set) Add(value int) { s.v.Mut(value/64).Add(value%64) }
 {{- else if .Large}}
 func (s *Set) Add(value int) { (*bit64.Set)(&s[value/64]).Add(value%64) }
@@ -346,6 +392,11 @@ func (s *Set) Add(value int) { s.AssignOr(Value(value)) }
 {{- end}}
 
 // Remove deletes a value from the set if present.
+{{- if .Dynamic}}
+// The value must be non-negative.
+{{- else}}
+// The value must be in [0, Max].
+{{- end}}
 {{- if .Dynamic}}
 func (s *Set) Remove(value int) { s.v.Mut(value/64).Remove(value%64) }
 {{- else if .Large}}
@@ -402,7 +453,7 @@ func (s Set) Each() iter.Seq[int] { return s.each }
 {{- end}}
 
 // Ranges loops over contiguous sub-ranges of the set in ascending order.
-// Each iteration produces the first value of the range, and the smallest value greater than that absent from the set.
+// Each iteration yields inclusive range bounds [start, end].
 {{- if .Dynamic}}
 func (s Set) Ranges() iter.Seq2[int, int] { return s.v.EachRange }
 {{- else if .ForcePtr}}

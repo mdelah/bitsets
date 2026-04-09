@@ -1,6 +1,10 @@
 package paged
 
-import "github.com/mdelah/bitsets/bit64"
+import (
+	"math/bits"
+
+	"github.com/mdelah/bitsets/bit64"
+)
 
 type Each func(int) bool
 
@@ -16,11 +20,8 @@ func (e Each) Walk(_ struct{}, i, mult int, mask bit64.Set) (struct{}, bool) {
 		}
 	case mask.IsNone():
 	default:
-		for j := range mask.Each() {
-			if j == -1 {
-				return struct{}{}, false
-			}
-			if !e(k + j) {
+		for w := uint64(mask); w != 0; w &= w - 1 {
+			if !e(k + bits.TrailingZeros64(w)) {
 				return struct{}{}, true
 			}
 		}

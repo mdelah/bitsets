@@ -8,7 +8,9 @@ import (
 	"github.com/mdelah/bitsets/internal/abstract"
 )
 
-// Set is fixed-width bitset able to store non-negative `int` values up to 7. The zero value is empty and ready to use.
+// Set is fixed-width bitset able to store `int` values in the inclusive range [0, Max].
+// Inputs outside this range are not supported and may panic or otherwise behave unexpectedly.
+// The zero value is empty and ready to use.
 type Set uint8
 
 const (
@@ -26,15 +28,19 @@ const (
 )
 
 // Value returns a set containing the one value.
+// The value must be in [0, Max].
 func Value(value int) Set { return Set(1 << value) }
 
 // Less returns a set containing all values smaller than that given.
+// The value must be in [0, Max].
 func Less(value int) Set { return Set((1 << value) - 1) }
 
 // More returns a set contains all values greater than that given.
+// The value must be in [0, Max].
 func More(value int) Set { return Set(^uint8(1<<(value+1) - 1)) }
 
 // Values returns a set containing the given values.
+// Every value must be in [0, Max].
 func Values(values ...int) Set {
 	var s Set
 	for _, value := range values {
@@ -76,6 +82,7 @@ func (s Set) Max() int {
 }
 
 // Has reports whether the set holds the value given.
+// The value must be in [0, Max].
 func (s Set) Has(value int) bool { return !s.HasNone(Value(value)) }
 
 // Equal tests if the set is the same as another.
@@ -97,18 +104,22 @@ func (s Set) Compare(other Set) int {
 }
 
 // LessCount returns the number of values in the set less than the given value.
+// The value must be in [0, Max].
 func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 
 // MoreCount returns the number of values in the set greater than the given value.
+// The value must be in [0, Max].
 func (s Set) MoreCount(value int) int { return s.And(More(value)).Count() }
 
 // AndCount returns the number of values the set has in common the other.
 func (s Set) AndCount(other Set) int { return s.And(other).Count() }
 
 // Add puts a value into the set if not already present.
+// The value must be in [0, Max].
 func (s *Set) Add(value int) { s.AssignOr(Value(value)) }
 
 // Remove deletes a value from the set if present.
+// The value must be in [0, Max].
 func (s *Set) Remove(value int) { s.AssignSub(Value(value)) }
 
 // Assign replaces the values with those from another set.
@@ -124,7 +135,7 @@ func (s *Set) AssignAll() { *s = All }
 func (s Set) Each() iter.Seq[int] { return s.each }
 
 // Ranges loops over contiguous sub-ranges of the set in ascending order.
-// Each iteration produces the first value of the range, and the smallest value greater than that absent from the set.
+// Each iteration yields inclusive range bounds [start, end].
 func (s Set) Ranges() iter.Seq2[int, int] { return s.eachRange }
 
 // Not returns the set of absent values.

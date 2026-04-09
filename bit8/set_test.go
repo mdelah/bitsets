@@ -1,9 +1,11 @@
 package bit8_test
 
 import (
+	"reflect"
+	"testing"
+
 	"github.com/mdelah/bitsets/bit8"
 	"github.com/mdelah/bitsets/internal/expect"
-	"testing"
 )
 
 func TestCount(t *testing.T) {
@@ -205,6 +207,44 @@ func TestEach(t *testing.T) {
 	expect.Ints(t, bit8.Value(5).Each(), 5)
 	expect.Ints(t, bit8.Values(3, 5).Each(), 3, 5)
 	expect.Ints(t, bit8.Less(5).Each(), 0, 1, 2, 3, 4)
+}
+
+func TestRanges(t *testing.T) {
+	tests := []struct {
+		name string
+		set  bit8.Set
+		want [][2]int
+	}{
+		{name: "none", set: bit8.None, want: nil},
+		{name: "single", set: bit8.Value(5), want: [][2]int{{5, 5}}},
+		{name: "contiguous", set: bit8.Less(5), want: [][2]int{{0, 4}}},
+		{name: "disjoint", set: bit8.Values(0, 2, 3, 6), want: [][2]int{{0, 0}, {2, 3}, {6, 6}}},
+		{name: "all", set: bit8.All, want: [][2]int{{0, bit8.Max}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got [][2]int
+			for left, right := range tt.set.Ranges() {
+				got = append(got, [2]int{left, right})
+			}
+			if !reflect.DeepEqual(tt.want, got) {
+				t.Fatalf("got %v; want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRangesEarlyStop(t *testing.T) {
+	set := bit8.Values(0, 2, 3, 6)
+	var got [][2]int
+	for left, right := range set.Ranges() {
+		got = append(got, [2]int{left, right})
+		break
+	}
+	if !reflect.DeepEqual(got, [][2]int{{0, 0}}) {
+		t.Fatalf("got %v; want [[0 0]]", got)
+	}
 }
 
 func TestNot(t *testing.T) {

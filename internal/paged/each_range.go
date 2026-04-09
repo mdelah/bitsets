@@ -1,6 +1,8 @@
 package paged
 
 import (
+	"math/bits"
+
 	"github.com/mdelah/bitsets/bit64"
 )
 
@@ -21,24 +23,36 @@ func (e EachRange) Walk(carry, i, _ int, mask bit64.Set) (int, bool) {
 			carry = -1
 		}
 	default:
-		for j1, j2 := range mask.Ranges() {
+		for w := uint64(mask); w != 0; {
+			lo := bits.TrailingZeros64(w)
+			// find end of contiguous run starting at lo
+			inv := ^(w >> lo)
+			runLen := bits.TrailingZeros64(inv) // 64 if all remaining bits are 1
+			hi := lo + runLen                   // exclusive end within word
+
+			j1 := lo
 			if j1 == 0 {
 				if carry == -1 {
 					carry = k + j1
 				}
 			} else {
-				if carry != -1 && !e(carry, k) {
+				if carry != -1 && !e(carry, k+j1) {
 					return -1, true
 				}
 				carry = k + j1
 			}
-			if j2 == bit64.Max {
-				continue
+
+			if hi >= 64 {
+				// run extends to end of word; carry continues into next word
+				break
 			}
-			if !e(carry, k+j2) {
+			if !e(carry, k+hi-1) {
 				return -1, true
 			}
 			carry = -1
+
+			// clear bits 0..hi-1 and continue
+			w &^= uint64(1)<<hi - 1
 		}
 	}
 	return carry, false
