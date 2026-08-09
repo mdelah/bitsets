@@ -3,6 +3,7 @@ package kbit_test
 import (
 	"github.com/mdelah/bitsets/internal/expect"
 	"github.com/mdelah/bitsets/kbit"
+	"reflect"
 	"testing"
 )
 
@@ -205,6 +206,110 @@ func TestEach(t *testing.T) {
 	expect.Ints(t, kbit.Value(5).Each(), 5)
 	expect.Ints(t, kbit.Values(3, 5).Each(), 3, 5)
 	expect.Ints(t, kbit.Less(5).Each(), 0, 1, 2, 3, 4)
+}
+
+func TestNext(t *testing.T) {
+	collect := func(s *kbit.Set) []int {
+		var got []int
+		for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+			got = append(got, v)
+		}
+		return got
+	}
+	check := func(t *testing.T, s *kbit.Set, want []int) {
+		t.Helper()
+		if got := collect(s); !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	}
+	t.Run("none", func(t *testing.T) { check(t, kbit.None(), nil) })
+	t.Run("single", func(t *testing.T) { check(t, kbit.Value(5), []int{5}) })
+	t.Run("multiple", func(t *testing.T) { check(t, kbit.Values(3, 5), []int{3, 5}) })
+	t.Run("contiguous", func(t *testing.T) { check(t, kbit.Less(5), []int{0, 1, 2, 3, 4}) })
+	t.Run("last value", func(t *testing.T) { check(t, kbit.Value(1023), []int{1023}) })
+	t.Run("spans a page boundary", func(t *testing.T) { check(t, kbit.Values(63, 64, 65), []int{63, 64, 65}) })
+	t.Run("matches Each", func(t *testing.T) {
+		s := kbit.Values(1, 2, 5, 1023)
+		var want []int
+		for v := range s.Each() {
+			want = append(want, v)
+		}
+		check(t, s, want)
+	})
+	t.Run("negative from clamps to 0", func(t *testing.T) {
+		s := kbit.Value(5)
+		v, ok := s.Next(-3)
+		if !ok || v != 5 {
+			t.Fatalf("Next(-3) = (%v, %v); want (5, true)", v, ok)
+		}
+	})
+}
+func TestRanges(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range kbit.None().Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		if !reflect.DeepEqual(got, [][2]int(nil)) {
+			t.Fatalf("got %v; want %v", got, [][2]int(nil))
+		}
+	})
+
+	t.Run("single", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range kbit.Value(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{5, 5}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("contiguous", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range kbit.Less(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 4}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("disjoint", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range kbit.Values(0, 2, 3, 6).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 0}, {2, 3}, {6, 6}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+	t.Run("all", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range kbit.All().Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, kbit.Max}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+}
+
+func TestRangesEarlyStop(t *testing.T) {
+	set := kbit.Values(0, 2, 3, 6)
+	var got [][2]int
+	for left, right := range set.Ranges() {
+		got = append(got, [2]int{left, right})
+		break
+	}
+	want := [][2]int{{0, 0}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v; want %v", got, want)
+	}
 }
 
 func TestNot(t *testing.T) {

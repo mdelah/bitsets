@@ -8,10 +8,12 @@ import (
 	"github.com/mdelah/bitsets/internal/paged"
 )
 
-// Set is variable-width bitset able to store non-negative `int` values. The zero value is empty and ready to use.
+// Set is a variable-width bitset able to store non-negative `int` values.
+// The zero value is empty and ready to use.
 type Set struct{ v paged.Var }
 
 // Value returns a set containing the one value.
+// The value must be non-negative.
 func Value(value int) Set { return Set{paged.Var{Begin: value / 64, Body: bit64.Value(value % 64)}} }
 
 // All returns a set containing all possible values.
@@ -21,16 +23,19 @@ func All() Set { return Set{paged.Var{Head: bit64.All, Body: bit64.All, Tail: bi
 func None() Set { return Set{} }
 
 // Less returns a set containing all values smaller than that given.
+// The value must be non-negative.
 func Less(value int) Set {
 	return Set{paged.Var{Head: bit64.All, Begin: value / 64, Body: bit64.Less(value % 64)}}
 }
 
 // More returns a set contains all values greater than that given.
+// The value must be non-negative.
 func More(value int) Set {
 	return Set{paged.Var{Begin: value / 64, Body: bit64.More(value % 64), Tail: bit64.All}}
 }
 
 // Values returns a set containing the given values.
+// Every value must be non-negative.
 func Values(values ...int) Set {
 	var s Set
 	for _, value := range values {
@@ -58,6 +63,7 @@ func (s Set) Min() int { return paged.WalkVar(s.v, -1, paged.Min) }
 func (s Set) Max() int { return paged.WalkVarBack(s.v, -1, paged.Max) }
 
 // Has reports whether the set holds the value given.
+// The value must be non-negative.
 func (s Set) Has(value int) bool { return s.v.Get(value / 64).Has(value % 64) }
 
 // Equal tests if the set is the same as another.
@@ -77,22 +83,26 @@ func (s Set) HasAll(other Set) bool { return paged.WalkVar2(s.v, other.v, true, 
 func (s Set) Compare(other Set) int { return paged.WalkVar2(s.v, other.v, 0, paged.Compare) }
 
 // LessCount returns the number of values in the set less than the given value.
+// The value must be non-negative.
 func (s Set) LessCount(value int) int {
-	return paged.WalkVar(s.v, 0, paged.LessCount{value / 64, value % 64}.Walk)
+	return paged.WalkVar(s.v, 0, paged.LessCount{Page: value / 64, Offset: value % 64}.Walk)
 }
 
 // MoreCount returns the number of values in the set greater than the given value.
+// The value must be non-negative.
 func (s Set) MoreCount(value int) int {
-	return paged.WalkVarBack(s.v, 0, paged.MoreCount{value / 64, value % 64}.Walk)
+	return paged.WalkVarBack(s.v, 0, paged.MoreCount{Page: value / 64, Offset: value % 64}.Walk)
 }
 
 // AndCount returns the number of values the set has in common the other.
 func (s Set) AndCount(other Set) int { return paged.WalkVar2(s.v, other.v, 0, paged.AndCount) }
 
 // Add puts a value into the set if not already present.
+// The value must be non-negative.
 func (s *Set) Add(value int) { s.v.Mut(value / 64).Add(value % 64) }
 
 // Remove deletes a value from the set if present.
+// The value must be non-negative.
 func (s *Set) Remove(value int) { s.v.Mut(value / 64).Remove(value % 64) }
 
 // Assign replaces the values with those from another set.
@@ -111,7 +121,7 @@ func (s *Set) AssignAll() { s.v.AssignAll() }
 func (s Set) Each() iter.Seq[int] { return s.v.Each }
 
 // Ranges loops over contiguous sub-ranges of the set in ascending order.
-// Each iteration produces the first value of the range, and the smallest value greater than that absent from the set.
+// Each iteration yields inclusive range bounds [start, end].
 func (s Set) Ranges() iter.Seq2[int, int] { return s.v.EachRange }
 
 // Not returns the set of absent values.

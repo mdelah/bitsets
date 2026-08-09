@@ -8,7 +8,7 @@ import (
 	"github.com/mdelah/bitsets/internal/abstract"
 )
 
-// Set is fixed-width bitset able to store `int` values in the inclusive range [0, Max].
+// Set is a fixed-width bitset able to store `int` values in the inclusive range [0, Max].
 // Inputs outside this range are not supported and may panic or otherwise behave unexpectedly.
 // The zero value is empty and ready to use.
 type Set uint8
@@ -79,6 +79,31 @@ func (s Set) Max() int {
 	default:
 		return Max - val
 	}
+}
+
+// Next returns the smallest member of the set that is >= from, and true; or (0, false) if there is
+// none. Unlike Each/Ranges, this allocates nothing: Each returns an iter.Seq[int], which -- because it
+// crosses this package's own API boundary as a bound method value or closure -- necessarily allocates
+// once per call, even though the loop it drives never escapes the caller. Next is a plain method call
+// with no closure of its own, so it is the preferred way to walk a Set's members in a hot loop:
+//
+//	for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+//		use(v)
+//	}
+//
+// A negative from is treated as 0.
+func (s Set) Next(from int) (int, bool) {
+	if from < 0 {
+		from = 0
+	}
+	if from > Max {
+		return 0, false
+	}
+	word := uint8(s) &^ (1<<uint(from) - 1)
+	if word == 0 {
+		return 0, false
+	}
+	return bits.TrailingZeros8(word), true
 }
 
 // Has reports whether the set holds the value given.

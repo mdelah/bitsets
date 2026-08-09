@@ -232,6 +232,54 @@ func TestEach(t *testing.T) {
 	expect.Ints(t, {{.Pkg}}.Less(5).Each(), 0, 1, 2, 3, 4)
 }
 
+{{if not .Dynamic -}}
+func TestNext(t *testing.T) {
+{{if .ForcePtr -}}
+	collect := func(s *{{.Pkg}}.Set) []int {
+{{else -}}
+	collect := func(s {{.Pkg}}.Set) []int {
+{{end -}}
+		var got []int
+		for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+			got = append(got, v)
+		}
+		return got
+	}
+{{if .ForcePtr -}}
+	check := func(t *testing.T, s *{{.Pkg}}.Set, want []int) {
+{{else -}}
+	check := func(t *testing.T, s {{.Pkg}}.Set, want []int) {
+{{end -}}
+		t.Helper()
+		if got := collect(s); !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	}
+	t.Run("none", func(t *testing.T) { check(t, {{.None}}, nil) })
+	t.Run("single", func(t *testing.T) { check(t, {{.Pkg}}.Value(5), []int{5}) })
+	t.Run("multiple", func(t *testing.T) { check(t, {{.Pkg}}.Values(3, 5), []int{3, 5}) })
+	t.Run("contiguous", func(t *testing.T) { check(t, {{.Pkg}}.Less(5), []int{0, 1, 2, 3, 4}) })
+	t.Run("last value", func(t *testing.T) { check(t, {{.Pkg}}.Value({{.Max}}), []int{ {{.Max}} }) })
+{{if .Large -}}
+	t.Run("spans a page boundary", func(t *testing.T) { check(t, {{.Pkg}}.Values(63, 64, 65), []int{63, 64, 65}) })
+{{end -}}
+	t.Run("matches Each", func(t *testing.T) {
+		s := {{.Pkg}}.Values(1, 2, 5, {{.Max}})
+		var want []int
+		for v := range s.Each() {
+			want = append(want, v)
+		}
+		check(t, s, want)
+	})
+	t.Run("negative from clamps to 0", func(t *testing.T) {
+		s := {{.Pkg}}.Value(5)
+		v, ok := s.Next(-3)
+		if !ok || v != 5 {
+			t.Fatalf("Next(-3) = (%v, %v); want (5, true)", v, ok)
+		}
+	})
+}
+{{end -}}
 func TestRanges(t *testing.T) {
 	t.Run("none", func(t *testing.T) {
 		var got [][2]int
@@ -248,7 +296,7 @@ func TestRanges(t *testing.T) {
 		for left, right := range {{.Pkg}}.Value(5).Ranges() {
 			got = append(got, [2]int{left, right})
 		}
-		want := [][2]int{{5, 5}}
+		want := [][2]int{ {5, 5}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %v; want %v", got, want)
 		}
@@ -259,7 +307,7 @@ func TestRanges(t *testing.T) {
 		for left, right := range {{.Pkg}}.Less(5).Ranges() {
 			got = append(got, [2]int{left, right})
 		}
-		want := [][2]int{{0, 4}}
+		want := [][2]int{ {0, 4}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %v; want %v", got, want)
 		}
@@ -270,7 +318,7 @@ func TestRanges(t *testing.T) {
 		for left, right := range {{.Pkg}}.Values(0, 2, 3, 6).Ranges() {
 			got = append(got, [2]int{left, right})
 		}
-		want := [][2]int{{0, 0}, {2, 3}, {6, 6}}
+		want := [][2]int{ {0, 0}, {2, 3}, {6, 6}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %v; want %v", got, want)
 		}
@@ -282,7 +330,7 @@ func TestRanges(t *testing.T) {
 		for left, right := range {{.All}}.Ranges() {
 			got = append(got, [2]int{left, right})
 		}
-		want := [][2]int{{0, {{.Pkg}}.Max}}
+		want := [][2]int{ {0, {{.Pkg}}.Max}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %v; want %v", got, want)
 		}
@@ -297,7 +345,7 @@ func TestRangesEarlyStop(t *testing.T) {
 		got = append(got, [2]int{left, right})
 		break
 	}
-	want := [][2]int{{0, 0}}
+	want := [][2]int{ {0, 0}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v; want %v", got, want)
 	}

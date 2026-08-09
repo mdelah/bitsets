@@ -4,6 +4,8 @@ import (
 	"iter"
 {{- if not .Large}}
 	"cmp"
+{{- end}}
+{{- if not .Dynamic}}
 	"math/bits"
 {{- end}}
 
@@ -262,6 +264,73 @@ func (s Set) Max() int {
 }
 {{- end}}
 
+{{- if not .Dynamic}}
+// Next returns the smallest member of the set that is >= from, and true; or (0, false) if there is
+// none. Unlike Each/Ranges, this allocates nothing: Each returns an iter.Seq[int], which -- because it
+// crosses this package's own API boundary as a bound method value or closure -- necessarily allocates
+// once per call, even though the loop it drives never escapes the caller. Next is a plain method call
+// with no closure of its own, so it is the preferred way to walk a Set's members in a hot loop:
+//
+//	for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+//		use(v)
+//	}
+//
+// A negative from is treated as 0.
+{{- if .ForcePtr}}
+func (s *Set) Next(from int) (int, bool) {
+	if from < 0 {
+		from = 0
+	}
+	w := from / 64
+	if w >= len(s) {
+		return 0, false
+	}
+	word := s[w] &^ (1<<uint(from%64) - 1)
+	for word == 0 {
+		w++
+		if w >= len(s) {
+			return 0, false
+		}
+		word = s[w]
+	}
+	return w*64 + bits.TrailingZeros64(word), true
+}
+{{- else if .Large}}
+func (s Set) Next(from int) (int, bool) {
+	if from < 0 {
+		from = 0
+	}
+	w := from / 64
+	if w >= len(s) {
+		return 0, false
+	}
+	word := s[w] &^ (1<<uint(from%64) - 1)
+	for word == 0 {
+		w++
+		if w >= len(s) {
+			return 0, false
+		}
+		word = s[w]
+	}
+	return w*64 + bits.TrailingZeros64(word), true
+}
+{{- else}}
+func (s Set) Next(from int) (int, bool) {
+	if from < 0 {
+		from = 0
+	}
+	if from > Max {
+		return 0, false
+	}
+	word := uint{{.Cap}}(s) &^ (1<<uint(from) - 1)
+	if word == 0 {
+		return 0, false
+	}
+	return bits.TrailingZeros{{.Cap}}(word), true
+}
+{{- end}}
+{{- end}}
+
 // Has reports whether the set holds the value given.
 {{- if .Dynamic}}
 // The value must be non-negative.
@@ -341,11 +410,11 @@ func (s Set) Compare(other Set) int { return cmp.Compare(bits.Reverse{{.Cap}}(ui
 // The value must be in [0, Max].
 {{- end}}
 {{- if .Dynamic}}
-func (s Set) LessCount(value int) int { return paged.WalkVar(s.v, 0, paged.LessCount{value/64, value%64}.Walk) }
+func (s Set) LessCount(value int) int { return paged.WalkVar(s.v, 0, paged.LessCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else if .ForcePtr}}
-func (s *Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{value/64, value%64}.Walk) }
+func (s *Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else if .Large}}
-func (s Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{value/64, value%64}.Walk) }
+func (s Set) LessCount(value int) int { return paged.WalkSlice(s[:], 0, paged.LessCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else}}
 func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 {{- end}}
@@ -357,11 +426,11 @@ func (s Set) LessCount(value int) int { return s.And(Less(value)).Count() }
 // The value must be in [0, Max].
 {{- end}}
 {{- if .Dynamic}}
-func (s Set) MoreCount(value int) int { return paged.WalkVarBack(s.v, 0, paged.MoreCount{value/64, value%64}.Walk) }
+func (s Set) MoreCount(value int) int { return paged.WalkVarBack(s.v, 0, paged.MoreCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else if .ForcePtr}}
-func (s *Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{value/64, value%64}.Walk) }
+func (s *Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else if .Large}}
-func (s Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{value/64, value%64}.Walk) }
+func (s Set) MoreCount(value int) int { return paged.WalkSliceBack(s[:], 0, paged.MoreCount{Page: value / 64, Offset: value % 64}.Walk) }
 {{- else}}
 func (s Set) MoreCount(value int) int { return s.And(More(value)).Count() }
 {{- end}}

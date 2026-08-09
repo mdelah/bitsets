@@ -3,6 +3,7 @@ package vbit_test
 import (
 	"github.com/mdelah/bitsets/internal/expect"
 	"github.com/mdelah/bitsets/vbit"
+	"reflect"
 	"testing"
 )
 
@@ -197,6 +198,64 @@ func TestEach(t *testing.T) {
 	expect.Ints(t, vbit.Value(5).Each(), 5)
 	expect.Ints(t, vbit.Values(3, 5).Each(), 3, 5)
 	expect.Ints(t, vbit.Less(5).Each(), 0, 1, 2, 3, 4)
+}
+
+func TestRanges(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range vbit.None().Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		if !reflect.DeepEqual(got, [][2]int(nil)) {
+			t.Fatalf("got %v; want %v", got, [][2]int(nil))
+		}
+	})
+
+	t.Run("single", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range vbit.Value(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{5, 5}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("contiguous", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range vbit.Less(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 4}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("disjoint", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range vbit.Values(0, 2, 3, 6).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 0}, {2, 3}, {6, 6}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+}
+
+func TestRangesEarlyStop(t *testing.T) {
+	set := vbit.Values(0, 2, 3, 6)
+	var got [][2]int
+	for left, right := range set.Ranges() {
+		got = append(got, [2]int{left, right})
+		break
+	}
+	want := [][2]int{{0, 0}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v; want %v", got, want)
+	}
 }
 
 func TestNot(t *testing.T) {

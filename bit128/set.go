@@ -2,13 +2,16 @@ package bit128
 
 import (
 	"iter"
+	"math/bits"
 
 	"github.com/mdelah/bitsets/bit64"
 	"github.com/mdelah/bitsets/internal/abstract"
 	"github.com/mdelah/bitsets/internal/paged"
 )
 
-// Set is fixed-width bitset able to store non-negative `int` values up to 127. The zero value is empty and ready to use.
+// Set is a fixed-width bitset able to store `int` values in the inclusive range [0, Max].
+// Inputs outside this range are not supported and may panic or otherwise behave unexpectedly.
+// The zero value is empty and ready to use.
 type Set [2]uint64
 
 const (
@@ -20,6 +23,7 @@ const (
 )
 
 // Value returns a set containing the one value.
+// The value must be in [0, Max].
 func Value(value int) Set {
 	var s Set
 	s.Add(value)
@@ -39,6 +43,7 @@ func All() Set {
 func None() Set { return Set{} }
 
 // Less returns a set containing all values smaller than that given.
+// The value must be in [0, Max].
 func Less(value int) Set {
 	var s Set
 	i := value / 64
@@ -50,6 +55,7 @@ func Less(value int) Set {
 }
 
 // More returns a set contains all values greater than that given.
+// The value must be in [0, Max].
 func More(value int) Set {
 	var s Set
 	i := value / 64
@@ -61,6 +67,7 @@ func More(value int) Set {
 }
 
 // Values returns a set containing the given values.
+// Every value must be in [0, Max].
 func Values(values ...int) Set {
 	var s Set
 	for _, value := range values {
@@ -87,7 +94,38 @@ func (s Set) Min() int { return paged.WalkSlice(s[:], -1, paged.Min) }
 // Max returns the largest value in the set. It returns -1 if empty.
 func (s Set) Max() int { return paged.WalkSliceBack(s[:], -1, paged.Max) }
 
+// Next returns the smallest member of the set that is >= from, and true; or (0, false) if there is
+// none. Unlike Each/Ranges, this allocates nothing: Each returns an iter.Seq[int], which -- because it
+// crosses this package's own API boundary as a bound method value or closure -- necessarily allocates
+// once per call, even though the loop it drives never escapes the caller. Next is a plain method call
+// with no closure of its own, so it is the preferred way to walk a Set's members in a hot loop:
+//
+//	for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+//		use(v)
+//	}
+//
+// A negative from is treated as 0.
+func (s Set) Next(from int) (int, bool) {
+	if from < 0 {
+		from = 0
+	}
+	w := from / 64
+	if w >= len(s) {
+		return 0, false
+	}
+	word := s[w] &^ (1<<uint(from%64) - 1)
+	for word == 0 {
+		w++
+		if w >= len(s) {
+			return 0, false
+		}
+		word = s[w]
+	}
+	return w*64 + bits.TrailingZeros64(word), true
+}
+
 // Has reports whether the set holds the value given.
+// The value must be in [0, Max].
 func (s Set) Has(value int) bool { return bit64.Set(s[value/64]).Has(value % 64) }
 
 // Equal tests if the set is the same as another.
@@ -107,22 +145,26 @@ func (s Set) HasAll(other Set) bool { return paged.WalkSlice2(s[:], other[:], tr
 func (s Set) Compare(other Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.Compare) }
 
 // LessCount returns the number of values in the set less than the given value.
+// The value must be in [0, Max].
 func (s Set) LessCount(value int) int {
-	return paged.WalkSlice(s[:], 0, paged.LessCount{value / 64, value % 64}.Walk)
+	return paged.WalkSlice(s[:], 0, paged.LessCount{Page: value / 64, Offset: value % 64}.Walk)
 }
 
 // MoreCount returns the number of values in the set greater than the given value.
+// The value must be in [0, Max].
 func (s Set) MoreCount(value int) int {
-	return paged.WalkSliceBack(s[:], 0, paged.MoreCount{value / 64, value % 64}.Walk)
+	return paged.WalkSliceBack(s[:], 0, paged.MoreCount{Page: value / 64, Offset: value % 64}.Walk)
 }
 
 // AndCount returns the number of values the set has in common the other.
 func (s Set) AndCount(other Set) int { return paged.WalkSlice2(s[:], other[:], 0, paged.AndCount) }
 
 // Add puts a value into the set if not already present.
+// The value must be in [0, Max].
 func (s *Set) Add(value int) { (*bit64.Set)(&s[value/64]).Add(value % 64) }
 
 // Remove deletes a value from the set if present.
+// The value must be in [0, Max].
 func (s *Set) Remove(value int) { (*bit64.Set)(&s[value/64]).Remove(value % 64) }
 
 // Assign replaces the values with those from another set.
@@ -142,7 +184,7 @@ func (s *Set) AssignAll() {
 func (s Set) Each() iter.Seq[int] { return paged.Slice(s[:]).Each }
 
 // Ranges loops over contiguous sub-ranges of the set in ascending order.
-// Each iteration produces the first value of the range, and the smallest value greater than that absent from the set.
+// Each iteration yields inclusive range bounds [start, end].
 func (s Set) Ranges() iter.Seq2[int, int] { return paged.Slice(s[:]).EachRange }
 
 // Not returns the set of absent values.

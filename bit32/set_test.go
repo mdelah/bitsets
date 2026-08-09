@@ -3,6 +3,7 @@ package bit32_test
 import (
 	"github.com/mdelah/bitsets/bit32"
 	"github.com/mdelah/bitsets/internal/expect"
+	"reflect"
 	"testing"
 )
 
@@ -205,6 +206,109 @@ func TestEach(t *testing.T) {
 	expect.Ints(t, bit32.Value(5).Each(), 5)
 	expect.Ints(t, bit32.Values(3, 5).Each(), 3, 5)
 	expect.Ints(t, bit32.Less(5).Each(), 0, 1, 2, 3, 4)
+}
+
+func TestNext(t *testing.T) {
+	collect := func(s bit32.Set) []int {
+		var got []int
+		for v, ok := s.Next(0); ok; v, ok = s.Next(v + 1) {
+			got = append(got, v)
+		}
+		return got
+	}
+	check := func(t *testing.T, s bit32.Set, want []int) {
+		t.Helper()
+		if got := collect(s); !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	}
+	t.Run("none", func(t *testing.T) { check(t, bit32.None, nil) })
+	t.Run("single", func(t *testing.T) { check(t, bit32.Value(5), []int{5}) })
+	t.Run("multiple", func(t *testing.T) { check(t, bit32.Values(3, 5), []int{3, 5}) })
+	t.Run("contiguous", func(t *testing.T) { check(t, bit32.Less(5), []int{0, 1, 2, 3, 4}) })
+	t.Run("last value", func(t *testing.T) { check(t, bit32.Value(31), []int{31}) })
+	t.Run("matches Each", func(t *testing.T) {
+		s := bit32.Values(1, 2, 5, 31)
+		var want []int
+		for v := range s.Each() {
+			want = append(want, v)
+		}
+		check(t, s, want)
+	})
+	t.Run("negative from clamps to 0", func(t *testing.T) {
+		s := bit32.Value(5)
+		v, ok := s.Next(-3)
+		if !ok || v != 5 {
+			t.Fatalf("Next(-3) = (%v, %v); want (5, true)", v, ok)
+		}
+	})
+}
+func TestRanges(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range bit32.None.Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		if !reflect.DeepEqual(got, [][2]int(nil)) {
+			t.Fatalf("got %v; want %v", got, [][2]int(nil))
+		}
+	})
+
+	t.Run("single", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range bit32.Value(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{5, 5}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("contiguous", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range bit32.Less(5).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 4}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+
+	t.Run("disjoint", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range bit32.Values(0, 2, 3, 6).Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, 0}, {2, 3}, {6, 6}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+	t.Run("all", func(t *testing.T) {
+		var got [][2]int
+		for left, right := range bit32.All.Ranges() {
+			got = append(got, [2]int{left, right})
+		}
+		want := [][2]int{{0, bit32.Max}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+	})
+}
+
+func TestRangesEarlyStop(t *testing.T) {
+	set := bit32.Values(0, 2, 3, 6)
+	var got [][2]int
+	for left, right := range set.Ranges() {
+		got = append(got, [2]int{left, right})
+		break
+	}
+	want := [][2]int{{0, 0}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v; want %v", got, want)
+	}
 }
 
 func TestNot(t *testing.T) {
