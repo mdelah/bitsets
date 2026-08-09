@@ -18,11 +18,11 @@ func TestCount(t *testing.T) {
 
 func TestString(t *testing.T) {
 	expect.Eq(t, "{}", kbit8.None().String())
-	expect.Eq(t, "{0-}", kbit8.All().String())
+	expect.Eq(t, "{0-8191}", kbit8.All().String())
 	expect.Eq(t, "{5}", kbit8.Value(5).String())
 	expect.Eq(t, "{3,5}", kbit8.Values(3, 5).String())
 	expect.Eq(t, "{0-4}", kbit8.Less(5).String())
-	expect.Eq(t, "{6-}", kbit8.More(5).String())
+	expect.Eq(t, "{6-8191}", kbit8.More(5).String())
 }
 
 func TestIsNone(t *testing.T) {

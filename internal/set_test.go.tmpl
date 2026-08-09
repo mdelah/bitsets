@@ -22,7 +22,7 @@ func TestCount(t *testing.T) {
 
 func TestString(t *testing.T) {
 	expect.Eq(t, "{}", {{.None}}.String())
-{{- if .Large}}
+{{- if .Dynamic}}
 	expect.Eq(t, "{0-}", {{.All}}.String())
 {{- else}}
 	expect.Eq(t, "{0-{{.Max}}}", {{.All}}.String())
@@ -30,7 +30,7 @@ func TestString(t *testing.T) {
 	expect.Eq(t, "{5}", {{.Pkg}}.Value(5).String())
 	expect.Eq(t, "{3,5}", {{.Pkg}}.Values(3, 5).String())
 	expect.Eq(t, "{0-4}", {{.Pkg}}.Less(5).String())
-{{- if .Large}}
+{{- if .Dynamic}}
 	expect.Eq(t, "{6-}", {{.Pkg}}.More(5).String())
 {{- else}}
 	expect.Eq(t, "{6-{{.Max}}}", {{.Pkg}}.More(5).String())

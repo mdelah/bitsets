@@ -18,11 +18,11 @@ func TestCount(t *testing.T) {
 
 func TestString(t *testing.T) {
 	expect.Eq(t, "{}", bit128.None().String())
-	expect.Eq(t, "{0-}", bit128.All().String())
+	expect.Eq(t, "{0-127}", bit128.All().String())
 	expect.Eq(t, "{5}", bit128.Value(5).String())
 	expect.Eq(t, "{3,5}", bit128.Values(3, 5).String())
 	expect.Eq(t, "{0-4}", bit128.Less(5).String())
-	expect.Eq(t, "{6-}", bit128.More(5).String())
+	expect.Eq(t, "{6-127}", bit128.More(5).String())
 }
 
 func TestIsNone(t *testing.T) {
