@@ -163,6 +163,26 @@ func TestAdd(t *testing.T) {
 	expect.Set(t, vbit.Value(3), x)
 	x.Add(5)
 	expect.Set(t, vbit.Values(3, 5), x)
+
+	// Regression: adding a value beyond the first page to a freshly created set
+	// caused a panic due to a wrong growth formula in paged.Var.Mut.
+	y := vbit.None()
+	y.Add(0)
+	y.Add(64) // page 1
+	expect.Set(t, vbit.Values(0, 64), y)
+
+	z := vbit.None()
+	z.Add(0)
+	z.Add(128) // page 2, skipping page 1
+	expect.Set(t, vbit.Values(0, 128), z)
+
+	// Regression: when Tail is non-zero (e.g. vbit.More), materializing a new
+	// page beyond the current end must start from Tail, not zero.
+	w := vbit.More(5)
+	w.Remove(70) // page 1; 70 = 64 + 6, so bit 6 of page 1
+	expect.Eq(t, false, w.Has(70))
+	expect.Eq(t, true, w.Has(71))
+	expect.Eq(t, true, w.Has(64))
 }
 
 func TestRemove(t *testing.T) {
