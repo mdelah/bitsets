@@ -92,10 +92,9 @@ func (v *Var) Mut(i int) *bit64.Set {
 		n := i - v.End() + 1
 		oldLen := len(v.More)
 		v.More = slices.Grow(v.More, n)[:oldLen+n]
-		for k := oldLen; k < len(v.More)-1; k++ {
+		for k := oldLen; k < len(v.More); k++ {
 			v.More[k] = v.Tail
 		}
-		v.More[len(v.More)-1] = 0
 		return &v.More[len(v.More)-1]
 	default:
 		return &v.More[i-v.Begin-1]
