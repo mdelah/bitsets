@@ -89,13 +89,13 @@ func (v *Var) Mut(i int) *bit64.Set {
 	case i == v.Begin:
 		return &v.Body
 	case i >= v.End():
-		n := 1 + v.End() - i
-		v.More = slices.Grow(v.More, n)
-		if v.Tail != 0 {
-			for k := len(v.More) - 1 - n; k != len(v.More); k++ {
-				v.More[k] = v.Tail
-			}
+		n := i - v.End() + 1
+		oldLen := len(v.More)
+		v.More = slices.Grow(v.More, n)[:oldLen+n]
+		for k := oldLen; k < len(v.More)-1; k++ {
+			v.More[k] = v.Tail
 		}
+		v.More[len(v.More)-1] = 0
 		return &v.More[len(v.More)-1]
 	default:
 		return &v.More[i-v.Begin-1]
