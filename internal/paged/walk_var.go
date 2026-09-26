@@ -25,12 +25,12 @@ func WalkVar[T any](s Var, val T, fn WalkFunc[T]) T {
 }
 
 func WalkVarBack[T any](s Var, val T, fn WalkFunc[T]) T {
-	val, stop := fn(val, math.MaxInt/64, math.MaxInt/64-s.End(), s.Tail)
+	val, stop := fn(val, math.MaxInt/64, math.MaxInt/64-s.End()+1, s.Tail)
 	if stop {
 		return val
 	}
 	for i := s.End() - 1; i > s.Begin; i-- {
-		val, stop = fn(val, i, 1, s.More[i])
+		val, stop = fn(val, i, 1, s.More[i-s.Begin-1])
 		if stop {
 			return val
 		}

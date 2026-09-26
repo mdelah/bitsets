@@ -56,6 +56,19 @@ func TestMax(t *testing.T) {
 	expect.Eq(t, 5, vbit.Value(5).Max())
 	expect.Eq(t, 5, vbit.Values(3, 5).Max())
 	expect.Eq(t, 4, vbit.Less(5).Max())
+
+	// Regression: WalkVarBack indexed More by absolute page number, so Max
+	// panicked (or read the wrong page) once a set spanned several pages.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	expect.Eq(t, 64, x.Max())
+	y := vbit.None()
+	y.Add(130)
+	y.Add(200)
+	y.Add(300)
+	y.Remove(300) // leaves an empty page at the end of More
+	expect.Eq(t, 200, y.Max())
 }
 
 func TestHas(t *testing.T) {
@@ -81,6 +94,24 @@ func TestMoreCount(t *testing.T) {
 	expect.Eq(t, 1, vbit.Value(5).MoreCount(4))
 	expect.Eq(t, 1, vbit.Values(3, 5).MoreCount(4))
 	expect.Eq(t, 0, vbit.Less(5).MoreCount(4))
+
+	// Regression: WalkVarBack's tail run skipped page End, so a pivot on that
+	// page went negative.
+	expect.Eq(t, 0, vbit.Value(5).MoreCount(64))
+	expect.Eq(t, 0, vbit.Values(3, 5).MoreCount(100))
+	expect.Eq(t, 2, vbit.Values(3, 64, 65, 70).MoreCount(64))
+
+	// Regression: see TestMax.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	expect.Eq(t, 1, x.MoreCount(0))
+	y := vbit.None()
+	y.Add(130)
+	y.Add(200)
+	y.Add(260)
+	expect.Eq(t, 2, y.MoreCount(130))
+	expect.Eq(t, 1, y.MoreCount(200))
 }
 
 func TestEqual(t *testing.T) {
@@ -241,6 +272,28 @@ func TestAddRemoveRandom(t *testing.T) {
 			}
 		}
 		expect.Eq(t, len(want), x.Count())
+		wantMin, wantMax := -1, -1
+		for n := range want {
+			if wantMin == -1 || n < wantMin {
+				wantMin = n
+			}
+			wantMax = max(wantMax, n)
+		}
+		expect.Eq(t, wantMin, x.Min())
+		expect.Eq(t, wantMax, x.Max())
+		for range 10 {
+			pivot := rng.IntN(704)
+			less, more := 0, 0
+			for n := range want {
+				if n < pivot {
+					less++
+				} else if n > pivot {
+					more++
+				}
+			}
+			expect.Eq(t, less, x.LessCount(pivot))
+			expect.Eq(t, more, x.MoreCount(pivot))
+		}
 		for n := range 704 {
 			if x.Has(n) != want[n] {
 				t.Fatalf("trial %d: Has(%d) = %v; wanted %v", trial, n, x.Has(n), want[n])
