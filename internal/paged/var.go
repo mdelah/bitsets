@@ -73,9 +73,8 @@ func (v *Var) Get(i int) bit64.Set {
 
 func (v *Var) Mut(i int) *bit64.Set {
 	switch {
-	case v.isUniform():
+	case len(v.More) == 0 && v.Head == v.Body && v.Body == v.Tail:
 		v.Begin = i
-		v.More = v.More[:0]
 		return &v.Body
 	case i < v.Begin:
 		n := v.Begin - i
@@ -101,20 +100,6 @@ func (v *Var) Mut(i int) *bit64.Set {
 	default:
 		return &v.More[i-v.Begin-1]
 	}
-}
-
-// isUniform reports whether every page holds the same value, in which case the
-// set can be re-centred anywhere without changing its contents.
-func (v *Var) isUniform() bool {
-	if v.Head != v.Body || v.Body != v.Tail {
-		return false
-	}
-	for _, p := range v.More {
-		if p != v.Tail {
-			return false
-		}
-	}
-	return true
 }
 
 func (v Var) Each(yield func(int) bool) {
