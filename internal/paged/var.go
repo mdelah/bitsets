@@ -73,11 +73,12 @@ func (v *Var) Get(i int) bit64.Set {
 
 func (v *Var) Mut(i int) *bit64.Set {
 	switch {
-	case v.Head == v.Body && v.Body == v.Tail:
+	case len(v.More) == 0 && v.Head == v.Body && v.Body == v.Tail:
 		v.Begin = i
 		return &v.Body
 	case i < v.Begin:
 		n := v.Begin - i
+		v.Begin = i
 		v.More = append(v.More, make([]bit64.Set, n)...)
 		copy(v.More[n:], v.More)
 		v.More[n-1] = v.Body
@@ -89,12 +90,11 @@ func (v *Var) Mut(i int) *bit64.Set {
 	case i == v.Begin:
 		return &v.Body
 	case i >= v.End():
-		n := 1 + v.End() - i
-		v.More = slices.Grow(v.More, n)
-		if v.Tail != 0 {
-			for k := len(v.More) - 1 - n; k != len(v.More); k++ {
-				v.More[k] = v.Tail
-			}
+		n := i - v.End() + 1
+		oldLen := len(v.More)
+		v.More = slices.Grow(v.More, n)[:oldLen+n]
+		for k := oldLen; k < len(v.More); k++ {
+			v.More[k] = v.Tail
 		}
 		return &v.More[len(v.More)-1]
 	default:

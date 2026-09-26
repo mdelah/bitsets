@@ -3,6 +3,7 @@ package vbit_test
 import (
 	"github.com/mdelah/bitsets/internal/expect"
 	"github.com/mdelah/bitsets/vbit"
+	"math/rand/v2"
 	"reflect"
 	"testing"
 )
@@ -55,6 +56,19 @@ func TestMax(t *testing.T) {
 	expect.Eq(t, 5, vbit.Value(5).Max())
 	expect.Eq(t, 5, vbit.Values(3, 5).Max())
 	expect.Eq(t, 4, vbit.Less(5).Max())
+
+	// Regression: WalkVarBack indexed More by absolute page number, so Max
+	// panicked (or read the wrong page) once a set spanned several pages.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	expect.Eq(t, 64, x.Max())
+	y := vbit.None()
+	y.Add(130)
+	y.Add(200)
+	y.Add(300)
+	y.Remove(300) // leaves an empty page at the end of More
+	expect.Eq(t, 200, y.Max())
 }
 
 func TestHas(t *testing.T) {
@@ -80,6 +94,24 @@ func TestMoreCount(t *testing.T) {
 	expect.Eq(t, 1, vbit.Value(5).MoreCount(4))
 	expect.Eq(t, 1, vbit.Values(3, 5).MoreCount(4))
 	expect.Eq(t, 0, vbit.Less(5).MoreCount(4))
+
+	// Regression: WalkVarBack's tail run skipped page End, so a pivot on that
+	// page went negative.
+	expect.Eq(t, 0, vbit.Value(5).MoreCount(64))
+	expect.Eq(t, 0, vbit.Values(3, 5).MoreCount(100))
+	expect.Eq(t, 2, vbit.Values(3, 64, 65, 70).MoreCount(64))
+
+	// Regression: see TestMax.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	expect.Eq(t, 1, x.MoreCount(0))
+	y := vbit.None()
+	y.Add(130)
+	y.Add(200)
+	y.Add(260)
+	expect.Eq(t, 2, y.MoreCount(130))
+	expect.Eq(t, 1, y.MoreCount(200))
 }
 
 func TestEqual(t *testing.T) {
@@ -163,6 +195,116 @@ func TestAdd(t *testing.T) {
 	expect.Set(t, vbit.Value(3), x)
 	x.Add(5)
 	expect.Set(t, vbit.Values(3, 5), x)
+
+	// Regression: adding a value beyond the first page to a freshly created set
+	// caused a panic due to a wrong growth formula in paged.Var.Mut.
+	y := vbit.None()
+	y.Add(0)
+	y.Add(64) // page 1
+	expect.Set(t, vbit.Values(0, 64), y)
+
+	z := vbit.None()
+	z.Add(0)
+	z.Add(128) // page 2, skipping page 1
+	expect.Set(t, vbit.Values(0, 128), z)
+
+	// Regression: when Tail is non-zero (e.g. vbit.More), materializing a new
+	// page beyond the current end must start from Tail, not zero.
+	w := vbit.More(5)
+	w.Remove(70) // page 1; 70 = 64 + 6, so bit 6 of page 1
+	expect.Eq(t, false, w.Has(70))
+	expect.Eq(t, true, w.Has(71))
+	expect.Eq(t, true, w.Has(64))
+}
+
+func TestAddBelowBegin(t *testing.T) {
+	// Regression: adding a value on a page below the first materialized page
+	// shifted the existing pages without moving Begin.
+	x := vbit.None()
+	x.Add(64)
+	x.Add(0)
+	expect.Set(t, vbit.Values(0, 64), x)
+	expect.Eq(t, true, x.Has(0))
+	expect.Eq(t, false, x.Has(128))
+
+	y := vbit.None()
+	y.Add(300)
+	y.Add(200)
+	y.Add(5) // several pages below Begin
+	expect.Set(t, vbit.Values(5, 200, 300), y)
+	expect.Ints(t, y.Each(), 5, 200, 300)
+}
+
+func TestAddAfterEmptying(t *testing.T) {
+	// Regression: once Head, Body and Tail all matched, Mut moved Begin but kept
+	// the pages in More, which then sat relative to the wrong page.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	x.Remove(0)
+	x.Add(200)
+	expect.Set(t, vbit.Values(64, 200), x)
+	expect.Ints(t, x.Each(), 64, 200)
+
+	y := vbit.None()
+	y.Add(0)
+	y.Add(64)
+	y.Remove(0)
+	y.Remove(64)
+	y.Add(3)
+	expect.Set(t, vbit.Value(3), y)
+	expect.Ints(t, y.Each(), 3)
+}
+
+func TestAddRemoveRandom(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	for trial := range 200 {
+		x := vbit.None()
+		want := map[int]bool{}
+		for range 50 {
+			n := rng.IntN(640)
+			if rng.IntN(3) == 0 {
+				x.Remove(n)
+				delete(want, n)
+			} else {
+				x.Add(n)
+				want[n] = true
+			}
+		}
+		expect.Eq(t, len(want), x.Count())
+		wantMin, wantMax := -1, -1
+		for n := range want {
+			if wantMin == -1 || n < wantMin {
+				wantMin = n
+			}
+			wantMax = max(wantMax, n)
+		}
+		expect.Eq(t, wantMin, x.Min())
+		expect.Eq(t, wantMax, x.Max())
+		for range 10 {
+			pivot := rng.IntN(704)
+			less, more := 0, 0
+			for n := range want {
+				if n < pivot {
+					less++
+				} else if n > pivot {
+					more++
+				}
+			}
+			expect.Eq(t, less, x.LessCount(pivot))
+			expect.Eq(t, more, x.MoreCount(pivot))
+		}
+		for n := range 704 {
+			if x.Has(n) != want[n] {
+				t.Fatalf("trial %d: Has(%d) = %v; wanted %v", trial, n, x.Has(n), want[n])
+			}
+		}
+		for n := range x.Each() {
+			if !want[n] {
+				t.Fatalf("trial %d: Each yielded %d, which is not in the set", trial, n)
+			}
+		}
+	}
 }
 
 func TestRemove(t *testing.T) {
