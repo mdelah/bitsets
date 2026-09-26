@@ -3,6 +3,7 @@ package vbit_test
 import (
 	"github.com/mdelah/bitsets/internal/expect"
 	"github.com/mdelah/bitsets/vbit"
+	"math/rand/v2"
 	"reflect"
 	"testing"
 )
@@ -183,6 +184,74 @@ func TestAdd(t *testing.T) {
 	expect.Eq(t, false, w.Has(70))
 	expect.Eq(t, true, w.Has(71))
 	expect.Eq(t, true, w.Has(64))
+}
+
+func TestAddBelowBegin(t *testing.T) {
+	// Regression: adding a value on a page below the first materialized page
+	// shifted the existing pages without moving Begin.
+	x := vbit.None()
+	x.Add(64)
+	x.Add(0)
+	expect.Set(t, vbit.Values(0, 64), x)
+	expect.Eq(t, true, x.Has(0))
+	expect.Eq(t, false, x.Has(128))
+
+	y := vbit.None()
+	y.Add(300)
+	y.Add(200)
+	y.Add(5) // several pages below Begin
+	expect.Set(t, vbit.Values(5, 200, 300), y)
+	expect.Ints(t, y.Each(), 5, 200, 300)
+}
+
+func TestAddAfterEmptying(t *testing.T) {
+	// Regression: once Head, Body and Tail all matched, Mut moved Begin but kept
+	// the pages in More, which then sat relative to the wrong page.
+	x := vbit.None()
+	x.Add(0)
+	x.Add(64)
+	x.Remove(0)
+	x.Add(200)
+	expect.Set(t, vbit.Values(64, 200), x)
+	expect.Ints(t, x.Each(), 64, 200)
+
+	y := vbit.None()
+	y.Add(0)
+	y.Add(64)
+	y.Remove(0)
+	y.Remove(64)
+	y.Add(3)
+	expect.Set(t, vbit.Value(3), y)
+	expect.Ints(t, y.Each(), 3)
+}
+
+func TestAddRemoveRandom(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	for trial := range 200 {
+		x := vbit.None()
+		want := map[int]bool{}
+		for range 50 {
+			n := rng.IntN(640)
+			if rng.IntN(3) == 0 {
+				x.Remove(n)
+				delete(want, n)
+			} else {
+				x.Add(n)
+				want[n] = true
+			}
+		}
+		expect.Eq(t, len(want), x.Count())
+		for n := range 704 {
+			if x.Has(n) != want[n] {
+				t.Fatalf("trial %d: Has(%d) = %v; wanted %v", trial, n, x.Has(n), want[n])
+			}
+		}
+		for n := range x.Each() {
+			if !want[n] {
+				t.Fatalf("trial %d: Each yielded %d, which is not in the set", trial, n)
+			}
+		}
+	}
 }
 
 func TestRemove(t *testing.T) {
